@@ -1,0 +1,38 @@
+systemd_units:
+  - id: ssh
+    name: ssh.service
+    display_name: SSH Service
+    description: SSH remote access service
+    actions:
+      - status
+      - logs
+      - restart
+
+  - id: docker
+    name: docker.service
+    display_name: Docker Engine
+    description: Docker daemon service
+    actions:
+      - status
+      - logs
+      - restart
+
+docker_containers:
+  - id: rsp-api
+    name: rsp-api
+    display_name: RSP API
+    description: Example API container
+    actions:
+      - status
+      - logs
+      - restart
+
+compose_projects:
+  - id: remote-service-platform
+    display_name: Remote Service Platform
+    path: /srv/remote-service-platform
+    compose_file: docker-compose.yml
+    actions:
+      - ps
+      - logs
+      - restart

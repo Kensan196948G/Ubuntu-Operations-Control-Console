@@ -1,0 +1,23 @@
+[Unit]
+Description=Ubuntu Ops Control Console Agent
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=uocc-agent
+Group=uocc-agent
+WorkingDirectory=/opt/uocc-agent
+EnvironmentFile=-/etc/uocc-agent/uocc-agent.env
+ExecStart=/opt/uocc-agent/.venv/bin/uvicorn uocc_agent.main:app --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=full
+ReadWritePaths=/var/run/docker.sock
+
+[Install]
+WantedBy=multi-user.target
+
