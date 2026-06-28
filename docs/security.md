@@ -18,6 +18,7 @@
 | Origin check | API は mutating action の `Origin` を allowlist 検証 |
 | 監査 | 操作結果、IP、User-Agent を記録 |
 | ログ行数 | 最大 1000 行に制限 |
+| ログ秘匿 | API レスポンスで一般的な secret/token/header を `[REDACTED]` に置換 |
 
 ## Threat Model
 
@@ -39,6 +40,7 @@
 | allowlist 外 action が拒否される | ✅ `prune` が 403 |
 | 拒否操作が監査される | ✅ audit log に failed として記録 |
 | ログ行数が 1000 を超えない | ✅ API test で 1001 行を 400 |
+| ログ内の secret/token が秘匿される | ✅ API test で password/token/Authorization Bearer を確認 |
 | Docker Compose が localhost bind | ✅ `127.0.0.1` bind を `docker compose config` で確認 |
 | API/Agent が host 非公開 | ✅ 一時 stack で未公開ポート接続拒否を確認 |
 | Agent allowlist bypass 防止 | ✅ spoofed target name を Agent 自身の allowlist 値へ復元 |
@@ -52,4 +54,4 @@
 | MVP では利用者ログインUIなし | localhost/LAN 限定を維持し、外部公開前に認証を追加 |
 | Agent local backend はホスト権限に依存 | systemd unit、Docker socket、Compose path を allowlist で限定 |
 | Docker socket exposure | compose ではコメントアウト、必要時だけ明示的に有効化 |
-| ログは機密情報を含み得る | operator token と非公開APIを維持し、次フェーズで redaction を追加 |
+| ログは未知形式の機密情報を含み得る | 既知パターンは redaction 済み。認証・非公開API・最小権限を継続 |

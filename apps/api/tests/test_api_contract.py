@@ -106,6 +106,22 @@ def test_log_line_limit_is_enforced(tmp_path, monkeypatch):
     assert too_many.status_code == 400
 
 
+def test_log_redaction_masks_common_secret_patterns(tmp_path, monkeypatch):
+    build_client(tmp_path, monkeypatch)
+    main = sys.modules["uocc_api.main"]
+
+    password_line = main._redact_log_line("database password=hunter2")
+    token_line = main._redact_log_line("auth token: abc.def.ghi")
+    authorization_line = main._redact_log_line("Authorization: Bearer abcdef12345")
+
+    assert "password=[REDACTED]" in password_line
+    assert "hunter2" not in password_line
+    assert "token: [REDACTED]" in token_line
+    assert "abc.def.ghi" not in token_line
+    assert "Authorization: Bearer [REDACTED]" in authorization_line
+    assert "abcdef12345" not in authorization_line
+
+
 def test_missing_allowlist_fails_closed(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()

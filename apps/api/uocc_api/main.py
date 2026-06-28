@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from typing import Annotated
 
@@ -22,6 +23,12 @@ from .settings import settings
 app = FastAPI(title=settings.app_name)
 allowlist = Allowlist.load(settings.allowlist_path)
 agent = AgentClient()
+
+SECRET_PATTERNS = (
+    re.compile(r"(?i)\b(authorization\s*[:=]\s*(?:[A-Za-z]+\s+)?)([^\s,;]+)"),
+    re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._~+/=-]+)"),
+    re.compile(r"(?i)\b(password|passwd|pwd|token|api[_-]?key|secret)(\s*[:=]\s*)([^\s,;]+)"),
+)
 
 
 @app.on_event("startup")
@@ -64,7 +71,7 @@ async def systemd_logs(target_id: str, request: Request, lines: Annotated[int, Q
     safe_lines = _safe_lines(lines)
     result = await agent.logs("systemd", target, safe_lines)
     _audit_view(request, "systemd", target.name, "logs", "success")
-    return result
+    return _redact_log_result(result)
 
 
 @app.post("/api/systemd/units/{target_id}/actions/{action}")
@@ -89,7 +96,7 @@ async def docker_logs(target_id: str, request: Request, lines: Annotated[int, Qu
     target = _require("docker", target_id, "logs")
     result = await agent.logs("docker", target, _safe_lines(lines))
     _audit_view(request, "docker", target.name, "logs", "success")
-    return result
+    return _redact_log_result(result)
 
 
 @app.post("/api/docker/containers/{target_id}/actions/{action}")
@@ -120,7 +127,7 @@ async def compose_logs(target_id: str, request: Request, lines: Annotated[int, Q
     target = _require("compose", target_id, "logs")
     result = await agent.logs("compose", target, _safe_lines(lines))
     _audit_view(request, "compose", target.display_name, "logs", "success")
-    return result
+    return _redact_log_result(result)
 
 
 @app.post("/api/compose/projects/{target_id}/actions/{action}")
@@ -141,7 +148,7 @@ async def logs(
     target = _require(target_type, target_id, "logs")
     result = await agent.logs(target_type, target, _safe_lines(lines))
     _audit_view(request, target_type, target.name, "logs", "success")
-    return result
+    return _redact_log_result(result)
 
 
 @app.get("/api/operations")
@@ -173,6 +180,22 @@ def _safe_lines(lines: int) -> int:
     if lines > settings.log_max_lines:
         raise HTTPException(status_code=400, detail=f"lines must be <= {settings.log_max_lines}")
     return lines
+
+
+def _redact_log_result(result: dict) -> dict:
+    if not settings.log_redaction_enabled or "lines" not in result:
+        return result
+    redacted = dict(result)
+    redacted["lines"] = [_redact_log_line(str(line)) for line in result.get("lines", [])]
+    return redacted
+
+
+def _redact_log_line(line: str) -> str:
+    redacted = line
+    redacted = SECRET_PATTERNS[0].sub(r"\1[REDACTED]", redacted)
+    redacted = SECRET_PATTERNS[1].sub(r"\1 [REDACTED]", redacted)
+    redacted = SECRET_PATTERNS[2].sub(r"\1\2[REDACTED]", redacted)
+    return redacted
 
 
 def _require_operator(request: Request) -> None:

@@ -102,6 +102,7 @@ sequenceDiagram
 | Origin check | mutating request は許可済み Origin のみ |
 | 操作種別 | start / stop / restart / ps / logs に限定 |
 | ログ行数 | 最大 1000 行 |
+| ログ秘匿 | `password` / `token` / `secret` / `Authorization` / `Bearer` などを `[REDACTED]` に置換 |
 | 公開範囲 | 初期設定は Web のみ `127.0.0.1` bind、API/Agent は internal expose |
 | 復旧 | Web/API 停止時も SSH で復旧できる前提 |
 

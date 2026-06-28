@@ -43,7 +43,7 @@
 | Monitor | PR #5 は draft、CodeRabbit は draft のため review skip、Project #35 は #3 CI が Todo | CI と security hardening が次の最大ギャップ |
 | Development | Release Gate workflow、API operator token/Origin、Agent allowlist enforcement、API/Agent internal-only compose、requirements split、standalone Web image | 完了 |
 | Verify | `pytest` 6件、Web lint/typecheck/audit、Compose config/build、一時 stack 起動、proxy action/拒否監査、API/Agent非公開確認 | 合格 |
-| Improvement | Security review Critical/High/Low の主要項目を修正し、README/docs/Project/PR 更新へ反映 | 進行中 |
+| Improvement | Security review Critical/High/Low の主要項目を修正し、README/docs/Project/PR 更新へ反映 | 完了 |
 
 ## Loop 2 Verification Evidence
 
@@ -58,3 +58,22 @@
 | Mutating action | `POST /ops-api/systemd/units/ssh/actions/restart` | 200 via proxy token |
 | Negative action | `POST /ops-api/docker/containers/rsp-api/actions/prune` | 403 and audit log recorded |
 | Exposure | temporary ports `33101` and `33102` for API/Agent | connection refused |
+
+## Loop 3
+
+| Phase | Evidence | Result |
+| --- | --- | --- |
+| Monitor | Security review の残タスクとして operational log の機密値露出を確認 | redaction が未実装 |
+| Development | API log response に password/token/secret/Authorization/Bearer の redaction を追加し、`LOG_REDACTION_ENABLED` を Compose/env に追加 | 完了 |
+| Verify | `pytest` 7件、Web lint/typecheck/audit、Compose config/build | 合格 |
+| Improvement | README/security/operations docs を redaction 済みに更新 | 完了 |
+
+## Loop 3 Verification Evidence
+
+| Gate | Command / Evidence | Result |
+| --- | --- | --- |
+| API/Agent tests | `PYTHONPATH=apps/api:agent/src /tmp/uocc-verify2/bin/python -m pytest apps/api/tests agent/src -q` | 7 passed |
+| Python compile | `compileall -q apps/api/uocc_api agent/src/uocc_agent` | passed |
+| Web lint/typecheck | `npm run lint && npm run typecheck` | passed |
+| Web audit | `npm audit --audit-level=high` | 0 vulnerabilities |
+| Compose config/build | `UOCC_OPERATOR_TOKEN=... docker compose config/build` | passed |

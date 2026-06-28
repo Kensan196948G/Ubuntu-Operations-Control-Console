@@ -32,6 +32,8 @@ docker compose logs -f api
 docker compose logs -f db
 ```
 
+API の target log レスポンスは `LOG_REDACTION_ENABLED=true` が既定です。`password`、`token`、`secret`、`Authorization`、`Bearer` 形式の値は `[REDACTED]` に置換されます。
+
 ## バックアップ対象
 
 | 対象 | 理由 |
