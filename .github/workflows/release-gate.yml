@@ -73,6 +73,9 @@ jobs:
       - name: Run typecheck
         run: npm run typecheck
 
+      - name: Run auth tests
+        run: npm run test:auth
+
       - name: Run npm audit
         run: npm audit --audit-level=high
 

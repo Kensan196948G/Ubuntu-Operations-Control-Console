@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySessionCookie } from "@/lib/session";
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
 async function handler(request: NextRequest, context: RouteContext) {
+  if (!(await verifySessionCookie(request.cookies.get(SESSION_COOKIE)?.value))) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { path } = await context.params;
   const configuredBase = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
   const baseUrl = configuredBase.replace(/\/$/, "");

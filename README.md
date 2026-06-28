@@ -43,7 +43,7 @@ flowchart LR
 | Docker | 許可済み container の status / logs / start / stop / restart | rm / rmi / volume rm / prune / exec |
 | Compose | 許可済み project の ps / logs / restart | down / down -v / volume 削除 |
 | 監査 | 操作履歴、IP、User-Agent、結果の記録 | 会社用途の権限管理 |
-| 認証 | MVPでは未実装、localhost/LAN 前提 | インターネット直接公開 |
+| 認証 | 単一 operator login + session cookie | 複数ユーザー権限管理 |
 
 ## 🚀 Quick Start
 
@@ -67,7 +67,7 @@ docker compose up --build
 | `config/app.example.yaml` | API / Agent / ログ制限などのアプリ設定 |
 | `.env.example` | Docker Compose とローカル起動用の環境変数 |
 
-`UOCC_OPERATOR_TOKEN` は必ずランダムな長い値へ変更してください。Web proxy がこの token を API に内部注入し、mutating action を保護します。
+`UOCC_OPERATOR_TOKEN`、`UOCC_WEB_LOGIN_PASSWORD`、`UOCC_WEB_SESSION_SECRET` は必ずランダムな長い値へ変更してください。Web proxy が operator token を API に内部注入し、Web UI と `/ops-api` は login session で保護されます。
 
 ## 🛡️ Security Model
 
@@ -99,6 +99,7 @@ sequenceDiagram
 | Allowlist | 登録済み対象・登録済み action のみ許可 |
 | Agent allowlist | Agent も自身の allowlist から対象を復元し、API から渡された `name/path` を信用しない |
 | Agent local backend | backend 内でも action、systemd unit 名、Docker container 名、Compose suffix/path を再検証 |
+| Web auth | Web UI と `/ops-api` proxy は署名付き HttpOnly session cookie で保護 |
 | Operator token | `POST /actions/*` は `X-UOCC-Operator-Token` 必須 |
 | Origin check | mutating request は許可済み Origin のみ |
 | 操作種別 | start / stop / restart / ps / logs に限定 |

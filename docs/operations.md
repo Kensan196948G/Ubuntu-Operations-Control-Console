@@ -8,6 +8,8 @@ editor .env  # UOCC_OPERATOR_TOKEN をランダムな長い値へ変更
 docker compose up --build
 ```
 
+`UOCC_WEB_LOGIN_PASSWORD` と `UOCC_WEB_SESSION_SECRET` も operator token とは別の長いランダム値にする。HTTPS 終端の背後で公開する場合は `UOCC_SESSION_COOKIE_SECURE=true` にする。
+
 ## 停止
 
 ```bash
@@ -63,6 +65,8 @@ docker compose -p uocc_verify down -v
 ローカル Node.js v25 では Next/SWC の Wasm memory error が発生する場合があるため、リリースビルド確認は Docker の Node 22 環境で行う。
 
 API と Agent は host port に公開しない。直接確認が必要な場合は `docker compose exec api ...` または Web proxy `/ops-api` を使う。
+
+Web UI と `/ops-api` は login session cookie がない場合 401/redirect で拒否する。`UOCC_WEB_AUTH_DISABLED=true` はローカル開発時だけ使用する。
 
 ## Host-backed Agent Checklist
 

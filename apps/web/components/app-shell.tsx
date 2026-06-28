@@ -10,6 +10,7 @@ import {
   FileClock,
   Gauge,
   Layers3,
+  LogOut,
   ScrollText,
   Settings,
   ShieldCheck
@@ -30,6 +31,10 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-console-line bg-white/92 backdrop-blur">
@@ -49,6 +54,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="rounded-md border border-console-line bg-console-bg px-3 py-1.5">
               Updated: live
             </span>
+            <form action="/auth/logout" method="post">
+              <button
+                className="inline-flex items-center gap-2 rounded-md border border-console-line bg-white px-3 py-1.5 text-console-ink transition hover:bg-console-bg"
+                type="submit"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Logout
+              </button>
+            </form>
           </div>
         </div>
       </header>

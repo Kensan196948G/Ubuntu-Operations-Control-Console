@@ -32,7 +32,8 @@
 | 日付 | 判断 | 理由 |
 | --- | --- | --- |
 | 2026-06-28 | FastAPI + Next.js + Docker Compose を採用 | 仕様書の推奨構成と一致し、個人運用MVPに対して軽量 |
-| 2026-06-28 | 認証は未実装、localhost/LAN 前提を維持 | 要件定義のMVP範囲に一致 |
+| 2026-06-28 | 初期MVPでは認証未実装、localhost/LAN 前提で開始 | 要件定義のMVP範囲に一致 |
+| 2026-06-28 | Web login/session を追加 | non-LAN/public deployment 前の最低限の公開面保護として必要 |
 | 2026-06-28 | 削除系・任意コマンド API は作らない | セキュリティ要件を満たすため |
 | 2026-06-28 | Docker Node 22 build をリリース検証の正とする | ホスト Node 25 では Next/SWC Wasm memory error が発生するため |
 
@@ -72,6 +73,26 @@
 | Python compile | `compileall -q apps/api/uocc_api agent/src/uocc_agent` | passed |
 | Host systemd status | `systemctl show ssh.service --property=Id,ActiveState,LoadState --no-page` | loaded / active |
 | Host Docker status | `docker ps --format ...` | listed running containers |
+
+## Loop 5
+
+| Phase | Evidence | Result |
+| --- | --- | --- |
+| Monitor | Project #2 の non-LAN/public deployment 前 authentication が Todo | Web 公開面の認証が必要 |
+| Development | Web login/logout、署名付き HttpOnly session、middleware protection、`/ops-api` proxy 二重検証、auth unit tests を追加 | 完了 |
+| Verify | Web lint/typecheck/auth tests、Release Gate auth test step、temporary stack auth flow | 合格 |
+| Improvement | README/security/operations docs と `.env.example` に login/session secret を反映 | 完了 |
+
+## Loop 5 Verification Evidence
+
+| Gate | Command / Evidence | Result |
+| --- | --- | --- |
+| Web lint/typecheck | `npm run lint && npm run typecheck` | passed |
+| Web auth tests | `npm run test:auth` | 3 passed |
+| Runtime unauth root | `GET /` on temporary Web port | 307 redirect to login |
+| Runtime unauth proxy | `GET /ops-api/health` without cookie | 401 |
+| Runtime login | `POST /auth/login` with configured password | 303 + session cookie |
+| Runtime auth proxy | `GET /ops-api/health` with session cookie | 200 |
 | Runtime proxy | `GET /ops-api/health` on temporary Web port | passed |
 | Mutating action | `POST /ops-api/systemd/units/ssh/actions/restart` | 200 via proxy token |
 | Negative action | `POST /ops-api/docker/containers/rsp-api/actions/prune` | 403 and audit log recorded |

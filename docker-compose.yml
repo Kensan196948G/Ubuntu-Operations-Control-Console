@@ -8,6 +8,9 @@ services:
       - NEXT_TELEMETRY_DISABLED=1
       - API_BASE_URL=http://api:8000
       - UOCC_OPERATOR_TOKEN=${UOCC_OPERATOR_TOKEN:?set UOCC_OPERATOR_TOKEN in .env}
+      - UOCC_WEB_LOGIN_PASSWORD=${UOCC_WEB_LOGIN_PASSWORD:-}
+      - UOCC_WEB_SESSION_SECRET=${UOCC_WEB_SESSION_SECRET:-}
+      - UOCC_SESSION_COOKIE_SECURE=${UOCC_SESSION_COOKIE_SECURE:-false}
     depends_on:
       - api
     restart: unless-stopped
