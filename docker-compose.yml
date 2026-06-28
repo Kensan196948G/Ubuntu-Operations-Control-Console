@@ -1,0 +1,73 @@
+services:
+  web:
+    build: ./apps/web
+    ports:
+      - "${UOCC_BIND_HOST:-127.0.0.1}:${UOCC_WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: ./apps/api
+    ports:
+      - "${UOCC_BIND_HOST:-127.0.0.1}:${UOCC_API_PORT:-8000}:8000"
+    environment:
+      - UOCC_ENV=${UOCC_ENV:-local}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-uocc}:${POSTGRES_PASSWORD:-uocc}@db:5432/${POSTGRES_DB:-uocc}
+      - ALLOWLIST_PATH=/app/config/allowlist.yaml
+      - APP_CONFIG_PATH=/app/config/app.yaml
+      - AGENT_BASE_URL=http://agent:8787
+      - AGENT_MODE=${AGENT_MODE:-auto}
+      - AGENT_TIMEOUT_SECONDS=${AGENT_TIMEOUT_SECONDS:-5}
+      - LOG_DEFAULT_LINES=${LOG_DEFAULT_LINES:-200}
+      - LOG_MAX_LINES=${LOG_MAX_LINES:-1000}
+    volumes:
+      - ./config:/app/config:ro
+      - uocc_api_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    restart: unless-stopped
+
+  agent:
+    build: ./agent
+    ports:
+      - "${UOCC_BIND_HOST:-127.0.0.1}:${UOCC_AGENT_PORT:-8787}:8787"
+    environment:
+      - ALLOWLIST_PATH=/app/config/allowlist.yaml
+      - APP_CONFIG_PATH=/app/config/app.yaml
+      - AGENT_BACKEND=${AGENT_BACKEND:-demo}
+      - LOG_DEFAULT_LINES=${LOG_DEFAULT_LINES:-200}
+      - LOG_MAX_LINES=${LOG_MAX_LINES:-1000}
+    volumes:
+      - ./config:/app/config:ro
+      # Enable only when running the agent in local mode and you accept Docker socket exposure.
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - /run/systemd:/run/systemd:ro
+      # - /var/log/journal:/var/log/journal:ro
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-uocc}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-uocc}
+      - POSTGRES_DB=${POSTGRES_DB:-uocc}
+    volumes:
+      - uocc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-uocc} -d ${POSTGRES_DB:-uocc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  uocc_pgdata:
+  uocc_api_data:
