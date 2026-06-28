@@ -63,3 +63,17 @@ docker compose -p uocc_verify down -v
 ローカル Node.js v25 では Next/SWC の Wasm memory error が発生する場合があるため、リリースビルド確認は Docker の Node 22 環境で行う。
 
 API と Agent は host port に公開しない。直接確認が必要な場合は `docker compose exec api ...` または Web proxy `/ops-api` を使う。
+
+## Host-backed Agent Checklist
+
+`AGENT_BACKEND=local` を有効にする前に確認すること:
+
+| 項目 | 確認 |
+| --- | --- |
+| systemd | allowlist に登録した unit のみ `systemctl show <unit>` が成功する |
+| Docker | Docker socket mount は必要時だけ有効化し、Agent 実行ユーザーに必要最小限の権限だけ付与する |
+| Compose | `path` は絶対パスで管理対象 project の root、`compose_file` は project 内の相対パスに限定する |
+| Actions | start/stop/restart/logs/ps 以外を allowlist に入れない |
+| Recovery | Web/API/Agent が壊れても SSH から `docker compose restart ...` で復旧できる |
+
+このリポジトリでは local backend 内でも dangerous action、unsafe target name、`docker compose down -v` 形式の suffix、compose path escape を拒否する。

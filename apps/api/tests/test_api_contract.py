@@ -178,8 +178,58 @@ def test_agent_rejects_compose_file_escape(tmp_path, monkeypatch):
     target = config.require_target(config.load_allowlist(str(allowlist)), "compose", "demo-compose", "ps")
 
     try:
-        local_backend._compose_args(target, ["ps"])
+        local_backend._compose_args(target, ["ps", "--format", "json"])
     except ValueError as exc:
         assert "inside project directory" in str(exc)
     else:
         raise AssertionError("compose file escape must be rejected")
+
+
+def test_agent_local_backend_rejects_dangerous_direct_actions(monkeypatch):
+    monkeypatch.setenv("AGENT_BACKEND", "local")
+
+    for name in list(sys.modules):
+        if name == "uocc_agent" or name.startswith("uocc_agent."):
+            del sys.modules[name]
+
+    local_backend = importlib.import_module("uocc_agent.local_backend")
+
+    target = {"id": "ssh", "name": "ssh.service", "actions": ["restart"]}
+    try:
+        local_backend.action("systemd", target, "disable")
+    except ValueError as exc:
+        assert "not permitted" in str(exc)
+    else:
+        raise AssertionError("dangerous systemd action must be rejected")
+
+    try:
+        local_backend.action("systemd", {"id": "ssh", "name": "--bad.service"}, "restart")
+    except ValueError as exc:
+        assert "unit name" in str(exc)
+    else:
+        raise AssertionError("unsafe systemd unit name must be rejected")
+
+    try:
+        local_backend.action("docker", {"id": "app", "name": "bad name"}, "restart")
+    except ValueError as exc:
+        assert "container name" in str(exc)
+    else:
+        raise AssertionError("unsafe docker container name must be rejected")
+
+
+def test_agent_local_backend_rejects_dangerous_compose_suffix(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_BACKEND", "local")
+
+    for name in list(sys.modules):
+        if name == "uocc_agent" or name.startswith("uocc_agent."):
+            del sys.modules[name]
+
+    local_backend = importlib.import_module("uocc_agent.local_backend")
+    target = {"id": "demo-compose", "name": "demo-compose", "path": str(tmp_path), "compose_file": "docker-compose.yml"}
+
+    try:
+        local_backend._compose_args(target, ["down", "-v"])
+    except ValueError as exc:
+        assert "not permitted" in str(exc)
+    else:
+        raise AssertionError("dangerous compose suffix must be rejected")

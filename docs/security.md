@@ -13,6 +13,7 @@
 | 削除系操作 | 実装しない |
 | Root 実行 | Web/API は root で動かさない |
 | Docker socket | API から直接広範に触らず、Agent に集約 |
+| Agent local backend | endpoint 前段だけでなく backend 内でも action/target/suffix を検証 |
 | API/Agent公開 | Docker Compose では host port を公開しない |
 | Operator token | Web proxy が server-side token を注入し、API は mutating action で検証 |
 | Origin check | API は mutating action の `Origin` を allowlist 検証 |
@@ -27,6 +28,7 @@
 | 未許可対象の操作 | ID と action を allowlist で検証 |
 | Agent endpoint 直叩き | Agent 側でも allowlist から target を復元し caller-supplied target details を信用しない |
 | 任意 shell 実行 | shell 文字列を API 入力から組み立てない |
+| Backend 直呼び/将来変更 | local backend 内で systemd/Docker/Compose action と対象名を固定検証 |
 | 破壊的 Docker 操作 | remove/prune/down -v/exec API を持たない |
 | 誤操作 | stop/restart は UI で確認必須 |
 | 証跡不足 | operation history と audit logs を永続化 |
@@ -44,6 +46,7 @@
 | Docker Compose が localhost bind | ✅ `127.0.0.1` bind を `docker compose config` で確認 |
 | API/Agent が host 非公開 | ✅ 一時 stack で未公開ポート接続拒否を確認 |
 | Agent allowlist bypass 防止 | ✅ spoofed target name を Agent 自身の allowlist 値へ復元 |
+| Agent local backend direct-call 防御 | ✅ disable/bad container/down -v を unit test で拒否確認 |
 | Compose path escape 防止 | ✅ `Path.is_relative_to()` で検証 |
 | Mutating action token | ✅ token なし 401、bad Origin 403 |
 
@@ -52,6 +55,6 @@
 | リスク | 対応方針 |
 | --- | --- |
 | MVP では利用者ログインUIなし | localhost/LAN 限定を維持し、外部公開前に認証を追加 |
-| Agent local backend はホスト権限に依存 | systemd unit、Docker socket、Compose path を allowlist で限定 |
+| Agent local backend はホスト権限に依存 | systemd unit、Docker socket、Compose path、backend 内 action を allowlist/固定ルールで限定 |
 | Docker socket exposure | compose ではコメントアウト、必要時だけ明示的に有効化 |
 | ログは未知形式の機密情報を含み得る | 既知パターンは redaction 済み。認証・非公開API・最小権限を継続 |

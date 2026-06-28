@@ -54,6 +54,24 @@
 | Web lint/typecheck | `npm run lint && npm run typecheck` | passed |
 | Web audit | `npm audit --audit-level=high` | 0 vulnerabilities |
 | Compose config/build | `UOCC_OPERATOR_TOKEN=... docker compose config/build` | passed |
+
+## Loop 4
+
+| Phase | Evidence | Result |
+| --- | --- | --- |
+| Monitor | Project #4 の real Ubuntu host backend hardening が Todo。local backend 単体では action 名の二重防御が不足 | backend 内 hardening が必要 |
+| Development | local backend に action allowlist、systemd unit 名検証、Docker container 名検証、Compose suffix/path 検証を追加 | 完了 |
+| Verify | `pytest` 9件、非破壊 host status (`systemctl show ssh.service`)、Docker container 一覧確認 | 合格 |
+| Improvement | security/operations/README に host-backed Agent checklist と backend 内防御を反映 | 完了 |
+
+## Loop 4 Verification Evidence
+
+| Gate | Command / Evidence | Result |
+| --- | --- | --- |
+| API/Agent tests | `PYTHONPATH=apps/api:agent/src /tmp/uocc-verify2/bin/python -m pytest apps/api/tests agent/src -q` | 9 passed |
+| Python compile | `compileall -q apps/api/uocc_api agent/src/uocc_agent` | passed |
+| Host systemd status | `systemctl show ssh.service --property=Id,ActiveState,LoadState --no-page` | loaded / active |
+| Host Docker status | `docker ps --format ...` | listed running containers |
 | Runtime proxy | `GET /ops-api/health` on temporary Web port | passed |
 | Mutating action | `POST /ops-api/systemd/units/ssh/actions/restart` | 200 via proxy token |
 | Negative action | `POST /ops-api/docker/containers/rsp-api/actions/prune` | 403 and audit log recorded |

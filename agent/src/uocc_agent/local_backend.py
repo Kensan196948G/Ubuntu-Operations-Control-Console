@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import socket
 import time
 from pathlib import Path
@@ -10,6 +11,14 @@ from typing import Any
 import psutil
 
 from .safe_process import run_fixed
+
+LOCAL_ACTIONS = {
+    "systemd": {"start", "stop", "restart"},
+    "docker": {"start", "stop", "restart"},
+    "compose": {"restart"},
+}
+SYSTEMD_UNIT_PATTERN = re.compile(r"^[A-Za-z0-9:_.@-]+\.[A-Za-z]+$")
+DOCKER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
 def dashboard(targets: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -51,9 +60,10 @@ def status(target_type: str, target: dict[str, Any]) -> dict[str, Any]:
 
 def logs(target_type: str, target: dict[str, Any], lines: int) -> dict[str, Any]:
     if target_type == "systemd":
+        _validate_systemd_unit(target["name"])
         code, stdout, stderr = run_fixed(["journalctl", "-u", target["name"], "-n", str(lines), "--no-pager", "-o", "short-iso"])
     elif target_type == "docker":
-        container = _docker_container(target["name"])
+        container = _docker_container(_validate_docker_name(target["name"]))
         output = container.logs(tail=lines).decode("utf-8", errors="replace")
         return {"target_id": target["id"], "target_name": target["name"], "lines": output.splitlines()}
     elif target_type == "compose":
@@ -66,15 +76,20 @@ def logs(target_type: str, target: dict[str, Any], lines: int) -> dict[str, Any]
 
 
 def action(target_type: str, target: dict[str, Any], action_name: str) -> dict[str, Any]:
+    _require_local_action(target_type, action_name)
     if target_type == "systemd":
+        _validate_systemd_unit(target["name"])
         code, stdout, stderr = run_fixed(["systemctl", action_name, target["name"]], timeout=60)
     elif target_type == "docker":
-        container = _docker_container(target["name"])
-        getattr(container, action_name)()
+        container = _docker_container(_validate_docker_name(target["name"]))
+        if action_name == "start":
+            container.start()
+        elif action_name == "stop":
+            container.stop()
+        elif action_name == "restart":
+            container.restart()
         return {"ok": True, "message": f"docker {action_name} completed", "changed": True}
     elif target_type == "compose":
-        if action_name != "restart":
-            return {"ok": False, "message": "compose action is not permitted", "changed": False}
         code, stdout, stderr = run_fixed(_compose_args(target, ["restart"]), timeout=120)
     else:
         raise ValueError("invalid target type")
@@ -82,6 +97,7 @@ def action(target_type: str, target: dict[str, Any], action_name: str) -> dict[s
 
 
 def systemd_status(target: dict[str, Any]) -> dict[str, Any]:
+    _validate_systemd_unit(target["name"])
     props = "Id,Description,LoadState,ActiveState,SubState,StateChangeTimestamp"
     code, stdout, stderr = run_fixed(["systemctl", "show", target["name"], f"--property={props}", "--no-page"])
     parsed = _parse_systemctl_show(stdout) if code == 0 else {}
@@ -96,7 +112,7 @@ def systemd_status(target: dict[str, Any]) -> dict[str, Any]:
 
 
 def docker_status(target: dict[str, Any]) -> dict[str, Any]:
-    container = _docker_container(target["name"])
+    container = _docker_container(_validate_docker_name(target["name"]))
     container.reload()
     attrs = container.attrs
     ports = attrs.get("NetworkSettings", {}).get("Ports") or {}
@@ -174,6 +190,7 @@ def _docker_container(name: str):
 
 
 def _compose_args(target: dict[str, Any], suffix: list[str]) -> list[str]:
+    _validate_compose_suffix(suffix)
     project_dir = Path(target["path"]).resolve()
     compose_file_name = target.get("compose_file", "docker-compose.yml")
     if Path(compose_file_name).is_absolute():
@@ -182,6 +199,33 @@ def _compose_args(target: dict[str, Any], suffix: list[str]) -> list[str]:
     if not compose_file.is_relative_to(project_dir):
         raise ValueError("compose file must be inside project directory")
     return ["docker", "compose", "--project-directory", str(project_dir), "-f", str(compose_file), *suffix]
+
+
+def _require_local_action(target_type: str, action_name: str) -> None:
+    if action_name not in LOCAL_ACTIONS.get(target_type, set()):
+        raise ValueError(f"{target_type} action is not permitted")
+
+
+def _validate_systemd_unit(name: str) -> str:
+    if not name or name.startswith("-") or not SYSTEMD_UNIT_PATTERN.fullmatch(name):
+        raise ValueError("systemd unit name is not permitted")
+    return name
+
+
+def _validate_docker_name(name: str) -> str:
+    if not name or name.startswith("-") or not DOCKER_NAME_PATTERN.fullmatch(name):
+        raise ValueError("docker container name is not permitted")
+    return name
+
+
+def _validate_compose_suffix(suffix: list[str]) -> None:
+    if suffix == ["ps", "--format", "json"]:
+        return
+    if suffix == ["restart"]:
+        return
+    if len(suffix) == 4 and suffix[:3] == ["logs", "--no-color", "--tail"] and suffix[3].isdigit():
+        return
+    raise ValueError("compose operation is not permitted")
 
 
 def _parse_compose_ps(output: str) -> list[dict[str, Any]]:

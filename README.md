@@ -98,6 +98,7 @@ sequenceDiagram
 | --- | --- |
 | Allowlist | 登録済み対象・登録済み action のみ許可 |
 | Agent allowlist | Agent も自身の allowlist から対象を復元し、API から渡された `name/path` を信用しない |
+| Agent local backend | backend 内でも action、systemd unit 名、Docker container 名、Compose suffix/path を再検証 |
 | Operator token | `POST /actions/*` は `X-UOCC-Operator-Token` 必須 |
 | Origin check | mutating request は許可済み Origin のみ |
 | 操作種別 | start / stop / restart / ps / logs に限定 |
