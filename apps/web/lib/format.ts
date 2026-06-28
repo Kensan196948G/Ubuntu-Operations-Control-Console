@@ -23,8 +23,8 @@ export function formatTime(value?: string) {
 }
 
 export function asPercent(value: number | string, unit?: string) {
-  if (typeof value === "number") return `${Math.round(value)}${unit ?? "%"}`;
-  return `${value}${unit ?? ""}`;
+  const normalized = typeof value === "number" ? Math.round(value) : value;
+  return `${normalized}${unit ?? "%"}`;
 }
 
 export function normalizeStatus(value?: string) {

@@ -54,7 +54,9 @@ services:
       - LOG_MAX_LINES=${LOG_MAX_LINES:-1000}
     volumes:
       - ./config:/app/config:ro
-      # Enable only when running the agent in local mode and you accept Docker socket exposure.
+      # The packaged agent container is demo/remote-safe by default.
+      # For AGENT_BACKEND=local, prefer installing the host systemd agent and point API at it.
+      # Enable these only if you extend the image with the required host CLIs and accept the exposure.
       # - /var/run/docker.sock:/var/run/docker.sock
       # - /run/systemd:/run/systemd:ro
       # - /var/log/journal:/var/log/journal:ro

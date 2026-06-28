@@ -122,6 +122,22 @@ def test_log_redaction_masks_common_secret_patterns(tmp_path, monkeypatch):
     assert "abcdef12345" not in authorization_line
 
 
+def test_api_settings_reject_invalid_log_line_defaults(tmp_path, monkeypatch):
+    build_client(tmp_path, monkeypatch)
+    settings_module = importlib.import_module("uocc_api.settings")
+
+    for kwargs in (
+        {"log_default_lines": 0, "log_max_lines": 1000},
+        {"log_default_lines": 1001, "log_max_lines": 1000},
+    ):
+        try:
+            settings_module.Settings(**kwargs)
+        except ValueError as exc:
+            assert "LOG_" in str(exc)
+        else:
+            raise AssertionError("invalid log line settings must fail fast")
+
+
 def test_missing_allowlist_fails_closed(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()

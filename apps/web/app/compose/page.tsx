@@ -35,7 +35,7 @@ export default function ComposePage() {
     if (!selectedProject) return;
     void getComposeServices(selectedProject).then((result) => {
       setServices(result.data);
-      if (result.fromFallback) setError(result.error);
+      setError(result.fromFallback ? result.error : undefined);
     });
   }, [selectedProject]);
 

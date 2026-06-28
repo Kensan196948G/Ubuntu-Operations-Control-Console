@@ -20,6 +20,14 @@ class Settings:
     operator_token: str | None = None
     allowed_origins: tuple[str, ...] = ("http://127.0.0.1:3000", "http://localhost:3000")
 
+    def __post_init__(self) -> None:
+        if self.agent_timeout_seconds <= 0:
+            raise ValueError("AGENT_TIMEOUT_SECONDS must be > 0")
+        if self.log_default_lines < 1:
+            raise ValueError("LOG_DEFAULT_LINES must be >= 1")
+        if self.log_max_lines < self.log_default_lines:
+            raise ValueError("LOG_MAX_LINES must be >= LOG_DEFAULT_LINES")
+
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(

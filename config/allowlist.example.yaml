@@ -30,10 +30,9 @@ docker_containers:
 compose_projects:
   - id: remote-service-platform
     display_name: Remote Service Platform
-    path: /home/kensan/Projects/Remote-Service-Platform
+    path: /srv/remote-service-platform
     compose_file: docker-compose.yml
     actions:
       - ps
       - logs
       - restart
-

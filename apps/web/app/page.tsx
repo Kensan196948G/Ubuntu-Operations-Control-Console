@@ -44,7 +44,10 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-console-muted">{dashboard.host.os ?? "OS information unavailable"}</p>
               <p className="mt-3 text-sm text-console-muted">Uptime: {dashboard.host.uptime ?? "-"}</p>
               <div className="mt-3">
-                <StatusBadge value={dashboard.host.agentOnline ? "Agent Online" : "Agent Offline"} />
+                <StatusBadge
+                  value={dashboard.host.agentOnline ? "active" : "inactive"}
+                  label={dashboard.host.agentOnline ? "Agent Online" : "Agent Offline"}
+                />
               </div>
             </div>
           </div>

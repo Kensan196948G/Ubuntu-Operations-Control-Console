@@ -19,7 +19,7 @@ const statusStyles: Record<string, string> = {
   unknown: "border-slate-200 bg-white text-slate-600"
 };
 
-export function StatusBadge({ value, className }: { value?: string; className?: string }) {
+export function StatusBadge({ value, label, className }: { value?: string; label?: string; className?: string }) {
   const status = normalizeStatus(value);
   return (
     <span
@@ -29,7 +29,7 @@ export function StatusBadge({ value, className }: { value?: string; className?: 
         className
       )}
     >
-      {value || "unknown"}
+      {label ?? value ?? "unknown"}
     </span>
   );
 }
