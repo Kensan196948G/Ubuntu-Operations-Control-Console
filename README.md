@@ -10,8 +10,9 @@
 | 🔌 API | ✅ MVP 実装済み | FastAPI、allowlist、履歴、監査ログ |
 | 🤖 Agent | ✅ Demo/Local 基盤実装済み | demo backend と限定 host operation backend |
 | 🗄️ DB | ✅ 起動検証済み | PostgreSQL compose、ローカル SQLite fallback |
-| 🛡️ Security | ✅ MVP 検証済み | 任意コマンド・削除系操作は禁止、拒否操作も監査 |
+| 🛡️ Security | ✅ 強化済み | Webのみ公開、API/Agent内部化、operator token、Agent側allowlist、拒否操作監査 |
 | 📚 Docs | ✅ 更新済み | `docs/` に仕様・運用・セキュリティ文書を配置 |
+| 🔁 CI | ✅ 追加済み | GitHub Actions Release Gate: Python / Web / Compose |
 
 ## 📊 Project Board
 
@@ -54,8 +55,9 @@ docker compose up --build
 | サービス | URL |
 | --- | --- |
 | Web UI | http://127.0.0.1:3000 |
-| API | http://127.0.0.1:8000 |
-| API Docs | http://127.0.0.1:8000/docs |
+| API Proxy | http://127.0.0.1:3000/ops-api |
+
+`docker compose` では API と Agent は host に公開せず、Web から Docker 内部ネットワーク経由でアクセスします。
 
 ## ⚙️ Configuration
 
@@ -64,6 +66,8 @@ docker compose up --build
 | `config/allowlist.example.yaml` | 操作を許可する systemd unit / container / compose project |
 | `config/app.example.yaml` | API / Agent / ログ制限などのアプリ設定 |
 | `.env.example` | Docker Compose とローカル起動用の環境変数 |
+
+`UOCC_OPERATOR_TOKEN` は必ずランダムな長い値へ変更してください。Web proxy がこの token を API に内部注入し、mutating action を保護します。
 
 ## 🛡️ Security Model
 
@@ -93,9 +97,12 @@ sequenceDiagram
 | 制御 | 方針 |
 | --- | --- |
 | Allowlist | 登録済み対象・登録済み action のみ許可 |
+| Agent allowlist | Agent も自身の allowlist から対象を復元し、API から渡された `name/path` を信用しない |
+| Operator token | `POST /actions/*` は `X-UOCC-Operator-Token` 必須 |
+| Origin check | mutating request は許可済み Origin のみ |
 | 操作種別 | start / stop / restart / ps / logs に限定 |
 | ログ行数 | 最大 1000 行 |
-| 公開範囲 | 初期設定は `127.0.0.1` bind |
+| 公開範囲 | 初期設定は Web のみ `127.0.0.1` bind、API/Agent は internal expose |
 | 復旧 | Web/API 停止時も SSH で復旧できる前提 |
 
 ## 🧪 Verification
@@ -118,6 +125,8 @@ docker compose up
 ```
 
 Note: この環境のホスト Node.js v25 では Next/SWC の Wasm メモリ確保で `npm run build` が失敗する場合があります。リリース検証は Dockerfile の Node 22 環境で `docker compose build` を正としています。
+
+GitHub Actions の Release Gate は PR / `main` push / manual dispatch で、Python compile/tests、Web lint/typecheck/audit、Docker Compose config/build を実行します。
 
 ## 📚 Documentation
 

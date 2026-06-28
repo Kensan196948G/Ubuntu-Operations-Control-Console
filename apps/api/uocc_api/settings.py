@@ -16,6 +16,8 @@ class Settings:
     agent_timeout_seconds: float = 5.0
     log_default_lines: int = 200
     log_max_lines: int = 1000
+    operator_token: str | None = None
+    allowed_origins: tuple[str, ...] = ("http://127.0.0.1:3000", "http://localhost:3000")
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -29,8 +31,13 @@ class Settings:
             agent_timeout_seconds=float(os.getenv("AGENT_TIMEOUT_SECONDS", cls.agent_timeout_seconds)),
             log_default_lines=int(os.getenv("LOG_DEFAULT_LINES", cls.log_default_lines)),
             log_max_lines=int(os.getenv("LOG_MAX_LINES", cls.log_max_lines)),
+            operator_token=os.getenv("UOCC_OPERATOR_TOKEN") or None,
+            allowed_origins=tuple(
+                origin.strip()
+                for origin in os.getenv("UOCC_ALLOWED_ORIGINS", ",".join(cls.allowed_origins)).split(",")
+                if origin.strip()
+            ),
         )
 
 
 settings = Settings.from_env()
-

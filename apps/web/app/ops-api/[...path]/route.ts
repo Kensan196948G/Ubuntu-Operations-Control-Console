@@ -13,12 +13,25 @@ async function handler(request: NextRequest, context: RouteContext) {
   target.search = url.search;
 
   try {
+    const headers: Record<string, string> = {
+      accept: request.headers.get("accept") ?? "application/json",
+      "content-type": request.headers.get("content-type") ?? "application/json"
+    };
+    const operatorToken = process.env.UOCC_OPERATOR_TOKEN;
+    if (!operatorToken && request.method !== "GET" && request.method !== "HEAD") {
+      return NextResponse.json({ error: "Operator token is not configured" }, { status: 503 });
+    }
+    if (operatorToken && request.method !== "GET" && request.method !== "HEAD") {
+      headers["x-uocc-operator-token"] = operatorToken;
+    }
+    const origin = request.headers.get("origin");
+    if (origin) {
+      headers.origin = origin;
+    }
+
     const response = await fetch(target, {
       method: request.method,
-      headers: {
-        accept: request.headers.get("accept") ?? "application/json",
-        "content-type": request.headers.get("content-type") ?? "application/json"
-      },
+      headers,
       body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
       cache: "no-store"
     });

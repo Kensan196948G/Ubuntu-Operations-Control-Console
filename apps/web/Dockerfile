@@ -15,16 +15,17 @@ RUN npm run build
 FROM node:22-slim AS runner
 
 ENV NODE_ENV=production \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000 \
     NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 RUN groupadd --system uocc && useradd --system --gid uocc uocc
 
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+COPY --from=builder --chown=uocc:uocc /app/.next/standalone ./
+COPY --from=builder --chown=uocc:uocc /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
 USER uocc
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]

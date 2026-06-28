@@ -175,8 +175,11 @@ def _docker_container(name: str):
 
 def _compose_args(target: dict[str, Any], suffix: list[str]) -> list[str]:
     project_dir = Path(target["path"]).resolve()
-    compose_file = (project_dir / target.get("compose_file", "docker-compose.yml")).resolve()
-    if not str(compose_file).startswith(str(project_dir)):
+    compose_file_name = target.get("compose_file", "docker-compose.yml")
+    if Path(compose_file_name).is_absolute():
+        raise ValueError("compose file must be relative to project directory")
+    compose_file = (project_dir / compose_file_name).resolve()
+    if not compose_file.is_relative_to(project_dir):
         raise ValueError("compose file must be inside project directory")
     return ["docker", "compose", "--project-directory", str(project_dir), "-f", str(compose_file), *suffix]
 

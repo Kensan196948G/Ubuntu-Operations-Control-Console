@@ -37,10 +37,8 @@ class Allowlist:
     @classmethod
     def load(cls, path: str) -> "Allowlist":
         candidate = Path(path)
-        if not candidate.exists() and path.endswith("allowlist.yaml"):
-            candidate = Path(path).with_name("allowlist.example.yaml")
         if not candidate.exists():
-            candidate = Path("config/allowlist.example.yaml")
+            raise FileNotFoundError(f"Allowlist file not found: {path}")
         data = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
         return cls(_parse_targets(data))
 
@@ -95,4 +93,3 @@ def _parse_targets(data: dict[str, Any]) -> list[Target]:
             )
         )
     return targets
-

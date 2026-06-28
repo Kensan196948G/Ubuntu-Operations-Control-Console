@@ -69,6 +69,7 @@ async def systemd_logs(target_id: str, request: Request, lines: Annotated[int, Q
 
 @app.post("/api/systemd/units/{target_id}/actions/{action}")
 async def systemd_action(target_id: str, action: str, request: Request) -> dict:
+    _require_operator(request)
     return await _run_action("systemd", target_id, action, request)
 
 
@@ -93,6 +94,7 @@ async def docker_logs(target_id: str, request: Request, lines: Annotated[int, Qu
 
 @app.post("/api/docker/containers/{target_id}/actions/{action}")
 async def docker_action(target_id: str, action: str, request: Request) -> dict:
+    _require_operator(request)
     return await _run_action("docker", target_id, action, request)
 
 
@@ -123,6 +125,7 @@ async def compose_logs(target_id: str, request: Request, lines: Annotated[int, Q
 
 @app.post("/api/compose/projects/{target_id}/actions/{action}")
 async def compose_action(target_id: str, action: str, request: Request) -> dict:
+    _require_operator(request)
     return await _run_action("compose", target_id, action, request)
 
 
@@ -170,6 +173,19 @@ def _safe_lines(lines: int) -> int:
     if lines > settings.log_max_lines:
         raise HTTPException(status_code=400, detail=f"lines must be <= {settings.log_max_lines}")
     return lines
+
+
+def _require_operator(request: Request) -> None:
+    if not settings.operator_token:
+        raise HTTPException(status_code=503, detail="Operator token is not configured")
+
+    supplied = request.headers.get("x-uocc-operator-token")
+    if supplied != settings.operator_token:
+        raise HTTPException(status_code=401, detail="Operator token is required")
+
+    origin = request.headers.get("origin")
+    if origin and origin not in settings.allowed_origins:
+        raise HTTPException(status_code=403, detail="Origin is not allowed")
 
 
 async def _run_action(target_type: str, target_id: str, action: str, request: Request) -> dict:

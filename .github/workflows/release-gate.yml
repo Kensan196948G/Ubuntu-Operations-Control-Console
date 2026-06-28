@@ -1,0 +1,97 @@
+name: Release Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python compile and tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/api/requirements-dev.txt
+            agent/requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r apps/api/requirements-dev.txt -r agent/requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q apps/api/uocc_api agent/src/uocc_agent
+
+      - name: Run pytest
+        env:
+          PYTHONPATH: apps/api:agent/src
+        run: python -m pytest apps/api/tests agent/src
+
+  web:
+    name: Web lint, typecheck, and audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+  docker-compose:
+    name: Docker Compose config and build
+    runs-on: ubuntu-latest
+    env:
+      UOCC_OPERATOR_TOKEN: ci-release-gate-token
+      UOCC_ALLOWED_ORIGINS: http://127.0.0.1:3000,http://localhost:3000
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose config
+        run: docker compose config
+
+      - name: Build Compose services
+        env:
+          DOCKER_BUILDKIT: "1"
+          COMPOSE_DOCKER_CLI_BUILD: "1"
+        run: docker compose build

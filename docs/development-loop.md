@@ -35,3 +35,26 @@
 | 2026-06-28 | 認証は未実装、localhost/LAN 前提を維持 | 要件定義のMVP範囲に一致 |
 | 2026-06-28 | 削除系・任意コマンド API は作らない | セキュリティ要件を満たすため |
 | 2026-06-28 | Docker Node 22 build をリリース検証の正とする | ホスト Node 25 では Next/SWC Wasm memory error が発生するため |
+
+## Loop 2
+
+| Phase | Evidence | Result |
+| --- | --- | --- |
+| Monitor | PR #5 は draft、CodeRabbit は draft のため review skip、Project #35 は #3 CI が Todo | CI と security hardening が次の最大ギャップ |
+| Development | Release Gate workflow、API operator token/Origin、Agent allowlist enforcement、API/Agent internal-only compose、requirements split、standalone Web image | 完了 |
+| Verify | `pytest` 6件、Web lint/typecheck/audit、Compose config/build、一時 stack 起動、proxy action/拒否監査、API/Agent非公開確認 | 合格 |
+| Improvement | Security review Critical/High/Low の主要項目を修正し、README/docs/Project/PR 更新へ反映 | 進行中 |
+
+## Loop 2 Verification Evidence
+
+| Gate | Command / Evidence | Result |
+| --- | --- | --- |
+| API/Agent tests | `PYTHONPATH=apps/api:agent/src /tmp/uocc-verify2/bin/python -m pytest apps/api/tests -q` | 6 passed |
+| Python compile | `compileall -q apps/api/uocc_api agent/src/uocc_agent` | passed |
+| Web lint/typecheck | `npm run lint && npm run typecheck` | passed |
+| Web audit | `npm audit --audit-level=high` | 0 vulnerabilities |
+| Compose config/build | `UOCC_OPERATOR_TOKEN=... docker compose config/build` | passed |
+| Runtime proxy | `GET /ops-api/health` on temporary Web port | passed |
+| Mutating action | `POST /ops-api/systemd/units/ssh/actions/restart` | 200 via proxy token |
+| Negative action | `POST /ops-api/docker/containers/rsp-api/actions/prune` | 403 and audit log recorded |
+| Exposure | temporary ports `33101` and `33102` for API/Agent | connection refused |

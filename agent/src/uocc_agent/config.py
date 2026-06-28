@@ -36,12 +36,37 @@ class Settings:
 
 def load_allowlist(path: str) -> dict[str, Any]:
     candidate = Path(path)
-    if not candidate.exists() and path.endswith("allowlist.yaml"):
-        candidate = Path(path).with_name("allowlist.example.yaml")
     if not candidate.exists():
-        candidate = Path("config/allowlist.example.yaml")
+        raise FileNotFoundError(f"Allowlist file not found: {path}")
     return yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
 
 
-settings = Settings.from_env()
+def allowlisted_targets(data: dict[str, Any], target_type: str) -> list[dict[str, Any]]:
+    if target_type == "systemd":
+        return [_with_type(item, "systemd") for item in data.get("systemd_units", [])]
+    if target_type == "docker":
+        return [_with_type(item, "docker") for item in data.get("docker_containers", [])]
+    if target_type == "compose":
+        return [_with_type(_normalize_compose(item), "compose") for item in data.get("compose_projects", [])]
+    return []
 
+
+def require_target(data: dict[str, Any], target_type: str, target_id: str, action_name: str) -> dict[str, Any]:
+    for target in allowlisted_targets(data, target_type):
+        if target.get("id") == target_id and action_name in set(target.get("actions", [])):
+            return target
+    raise PermissionError("Target is not allowed")
+
+
+def _with_type(item: dict[str, Any], target_type: str) -> dict[str, Any]:
+    return dict(item) | {"type": target_type}
+
+
+def _normalize_compose(item: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(item)
+    normalized.setdefault("name", item.get("display_name", item["id"]))
+    normalized.setdefault("compose_file", "docker-compose.yml")
+    return normalized
+
+
+settings = Settings.from_env()

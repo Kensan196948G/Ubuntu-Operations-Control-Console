@@ -4,6 +4,7 @@
 
 ```bash
 cp .env.example .env
+editor .env  # UOCC_OPERATOR_TOKEN をランダムな長い値へ変更
 docker compose up --build
 ```
 
@@ -52,10 +53,11 @@ docker compose up -d
 既存ポートを避けて検証する場合:
 
 ```bash
-UOCC_WEB_PORT=33100 UOCC_API_PORT=33101 UOCC_AGENT_PORT=33102 docker compose -p uocc_verify up -d
-curl http://127.0.0.1:33101/api/health
+UOCC_OPERATOR_TOKEN=verify-token UOCC_WEB_PORT=33100 docker compose -p uocc_verify up -d
 curl http://127.0.0.1:33100/ops-api/health
 docker compose -p uocc_verify down -v
 ```
 
 ローカル Node.js v25 では Next/SWC の Wasm memory error が発生する場合があるため、リリースビルド確認は Docker の Node 22 環境で行う。
+
+API と Agent は host port に公開しない。直接確認が必要な場合は `docker compose exec api ...` または Web proxy `/ops-api` を使う。

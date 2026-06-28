@@ -40,17 +40,17 @@ class AgentClient:
 
     async def get_target(self, target_type: str, target: Target) -> dict[str, Any]:
         fallback = demo_target(target_type, target)
-        return await self._post_or_demo(f"/v1/{target_type}/status", {"target": asdict(target)}, fallback)
+        return await self._post_or_demo(f"/v1/{target_type}/status", {"target_id": target.id}, fallback)
 
     async def logs(self, target_type: str, target: Target, lines: int) -> dict[str, Any]:
         fallback = {"target_id": target.id, "target_name": target.name, "lines": demo_logs(target_type, target, lines)}
-        return await self._post_or_demo(f"/v1/{target_type}/logs", {"target": asdict(target), "lines": lines}, fallback)
+        return await self._post_or_demo(f"/v1/{target_type}/logs", {"target_id": target.id, "lines": lines}, fallback)
 
     async def action(self, target_type: str, target: Target, action: str) -> dict[str, Any]:
         fallback = {"ok": True, "message": f"demo {action} accepted", "changed": False}
         return await self._post_or_demo(
             f"/v1/{target_type}/actions/{action}",
-            {"target": asdict(target)},
+            {"target_id": target.id},
             fallback,
             allow_demo_actions=True,
         )
@@ -67,7 +67,7 @@ class AgentClient:
         try:
             return await self._request("POST", path, json=payload)
         except AgentUnavailable:
-            if self.mode == "auto" and (not allow_demo_actions or settings.environment == "local"):
+            if self.mode == "auto" and not allow_demo_actions:
                 return fallback
             raise
 

@@ -7,24 +7,27 @@ services:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
       - API_BASE_URL=http://api:8000
+      - UOCC_OPERATOR_TOKEN=${UOCC_OPERATOR_TOKEN:?set UOCC_OPERATOR_TOKEN in .env}
     depends_on:
       - api
     restart: unless-stopped
 
   api:
     build: ./apps/api
-    ports:
-      - "${UOCC_BIND_HOST:-127.0.0.1}:${UOCC_API_PORT:-8000}:8000"
+    expose:
+      - "8000"
     environment:
       - UOCC_ENV=${UOCC_ENV:-local}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-uocc}:${POSTGRES_PASSWORD:-uocc}@db:5432/${POSTGRES_DB:-uocc}
-      - ALLOWLIST_PATH=/app/config/allowlist.yaml
+      - ALLOWLIST_PATH=${ALLOWLIST_PATH:-/app/config/allowlist.example.yaml}
       - APP_CONFIG_PATH=/app/config/app.yaml
       - AGENT_BASE_URL=http://agent:8787
       - AGENT_MODE=${AGENT_MODE:-auto}
       - AGENT_TIMEOUT_SECONDS=${AGENT_TIMEOUT_SECONDS:-5}
       - LOG_DEFAULT_LINES=${LOG_DEFAULT_LINES:-200}
       - LOG_MAX_LINES=${LOG_MAX_LINES:-1000}
+      - UOCC_OPERATOR_TOKEN=${UOCC_OPERATOR_TOKEN:?set UOCC_OPERATOR_TOKEN in .env}
+      - UOCC_ALLOWED_ORIGINS=${UOCC_ALLOWED_ORIGINS:-http://127.0.0.1:${UOCC_WEB_PORT:-3000},http://localhost:${UOCC_WEB_PORT:-3000}}
     volumes:
       - ./config:/app/config:ro
       - uocc_api_data:/app/data
@@ -37,10 +40,10 @@ services:
 
   agent:
     build: ./agent
-    ports:
-      - "${UOCC_BIND_HOST:-127.0.0.1}:${UOCC_AGENT_PORT:-8787}:8787"
+    expose:
+      - "8787"
     environment:
-      - ALLOWLIST_PATH=/app/config/allowlist.yaml
+      - ALLOWLIST_PATH=${ALLOWLIST_PATH:-/app/config/allowlist.example.yaml}
       - APP_CONFIG_PATH=/app/config/app.yaml
       - AGENT_BACKEND=${AGENT_BACKEND:-demo}
       - LOG_DEFAULT_LINES=${LOG_DEFAULT_LINES:-200}
