@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,10 +10,12 @@ import yaml
 
 
 SAFE_ACTIONS = {
-    "systemd": {"status", "logs", "start", "stop", "restart"},
+    "systemd": {"status", "logs", "start", "stop", "restart", "delete", "edit"},
     "docker": {"status", "logs", "start", "stop", "restart"},
     "compose": {"ps", "logs", "restart"},
 }
+SYSTEMD_UNIT_PATTERN = re.compile(r"^[A-Za-z0-9:_.@-]+\.[A-Za-z]+$")
+SYSTEMD_ALL_ACTIONS = ("status", "logs", "start", "stop", "restart", "delete", "edit")
 
 
 @dataclass(frozen=True)
@@ -53,8 +56,20 @@ def allowlisted_targets(data: dict[str, Any], target_type: str) -> list[dict[str
 
 def require_target(data: dict[str, Any], target_type: str, target_id: str, action_name: str) -> dict[str, Any]:
     for target in allowlisted_targets(data, target_type):
-        if target.get("id") == target_id and action_name in set(target.get("actions", [])):
-            return target
+        if target.get("id") == target_id:
+            if target_type == "systemd" and action_name in SAFE_ACTIONS["systemd"]:
+                return dict(target) | {"actions": list(SYSTEMD_ALL_ACTIONS)}
+            if action_name in set(target.get("actions", [])):
+                return target
+    if target_type == "systemd" and action_name in SAFE_ACTIONS["systemd"] and SYSTEMD_UNIT_PATTERN.fullmatch(target_id):
+        return {
+            "id": target_id,
+            "type": "systemd",
+            "name": target_id,
+            "display_name": target_id,
+            "description": "",
+            "actions": list(SYSTEMD_ALL_ACTIONS),
+        }
     raise PermissionError("Target is not allowed")
 
 

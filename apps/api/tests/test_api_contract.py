@@ -64,11 +64,25 @@ def test_dashboard_and_allowlisted_targets(tmp_path, monkeypatch):
 
     dashboard = client.get("/api/dashboard")
     assert dashboard.status_code == 200
-    assert dashboard.json()["host"]["hostname"]
+    dashboard_json = dashboard.json()
+    assert dashboard_json["host"]["hostname"]
+    assert dashboard_json["host"]["agent_online"] is True
+    assert dashboard_json["updated_at"]
+    assert dashboard_json["recent_operations"] == []
+    assert dashboard_json["systemd_summary"]["total"] == 2
+    assert dashboard_json["docker_summary"]["total"] == 1
+    assert any(item["id"] == "agent-demo-backend" for item in dashboard_json["alerts"])
 
     units = client.get("/api/systemd/units")
     assert units.status_code == 200
     assert units.json()["items"][0]["id"] == "ssh"
+
+    catalog = client.get("/api/systemd/catalog")
+    assert catalog.status_code == 200
+    catalog_json = catalog.json()
+    assert "all_units" in catalog_json
+    assert any(item["id"] == "ssh" and item["allowed"] is True for item in catalog_json["allowed_units"])
+    assert all(item["allowed"] is False for item in catalog_json["prohibited_units"])
 
 
 def test_actions_are_allowlisted_and_audited(tmp_path, monkeypatch):
@@ -88,12 +102,19 @@ def test_actions_are_allowlisted_and_audited(tmp_path, monkeypatch):
     assert allowed.status_code == 200
     assert allowed.json()["status"] == "success"
 
-    denied = client.post("/api/systemd/units/ssh/actions/stop", headers=headers)
-    assert denied.status_code == 403
+    dashboard = client.get("/api/dashboard").json()
+    assert dashboard["recent_operations"][0]["action"] == "restart"
+    assert dashboard["recent_operations"][0]["status"] == "success"
+
+    allowed_stop = client.post("/api/systemd/units/ssh/actions/stop", headers=headers)
+    assert allowed_stop.status_code == 200
+
+    allowed_delete = client.post("/api/systemd/units/ssh/actions/delete", headers=headers)
+    assert allowed_delete.status_code == 200
 
     audit = client.get("/api/audit-logs").json()["items"]
     assert any(item["action"] == "restart" and item["result"] == "success" for item in audit)
-    assert any(item["action"] == "stop" and item["result"] == "failed" for item in audit)
+    assert any(item["action"] == "stop" and item["result"] == "success" for item in audit)
 
 
 def test_log_line_limit_is_enforced(tmp_path, monkeypatch):

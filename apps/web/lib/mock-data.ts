@@ -21,7 +21,10 @@ export const mockSystemdUnits: SystemdUnit[] = [
     activeState: "active",
     subState: "running",
     lastChanged: now,
-    actions: ["start", "stop", "restart"]
+    fragmentPath: "/etc/systemd/system/ssh.service",
+    editable: true,
+    allowed: true,
+    actions: ["start", "stop", "restart", "delete"]
   },
   {
     id: "docker",
@@ -32,7 +35,10 @@ export const mockSystemdUnits: SystemdUnit[] = [
     activeState: "active",
     subState: "running",
     lastChanged: now,
-    actions: ["start", "stop", "restart"]
+    fragmentPath: "/etc/systemd/system/docker.service",
+    editable: true,
+    allowed: true,
+    actions: ["start", "stop", "restart", "delete"]
   },
   {
     id: "uocc-agent",
@@ -43,7 +49,10 @@ export const mockSystemdUnits: SystemdUnit[] = [
     activeState: "failed",
     subState: "exit-code",
     lastChanged: now,
-    actions: ["start", "restart"]
+    fragmentPath: "/etc/systemd/system/uocc-agent.service",
+    editable: true,
+    allowed: true,
+    actions: ["start", "stop", "restart", "delete"]
   }
 ];
 

@@ -9,10 +9,11 @@ import yaml
 
 TARGET_TYPES = {"systemd", "docker", "compose"}
 SAFE_ACTIONS = {
-    "systemd": {"status", "logs", "start", "stop", "restart"},
+    "systemd": {"status", "logs", "start", "stop", "restart", "delete", "edit"},
     "docker": {"status", "logs", "start", "stop", "restart"},
     "compose": {"ps", "logs", "restart"},
 }
+SYSTEMD_ALL_ACTIONS = ("status", "logs", "start", "stop", "restart", "delete", "edit")
 
 
 @dataclass(frozen=True)

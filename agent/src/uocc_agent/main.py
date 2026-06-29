@@ -29,6 +29,10 @@ class LogsRequest(TargetRequest):
     lines: int = Field(default=settings.default_lines, ge=1, le=settings.max_lines)
 
 
+class UnitFileSaveRequest(TargetRequest):
+    content: str = Field(max_length=262_144)
+
+
 @app.get("/v1/health")
 def health() -> dict[str, Any]:
     return {"status": "ok", "backend": settings.backend}
@@ -67,6 +71,29 @@ def logs(target_type: str, payload: LogsRequest) -> dict[str, Any]:
     if settings.backend == "demo":
         return demo.logs(target_type, target, payload.lines)
     return local_backend.logs(target_type, target, payload.lines)
+
+
+@app.post("/v1/systemd/unit-file")
+def systemd_unit_file(payload: TargetRequest) -> dict[str, Any]:
+    target = _require_request_target("systemd", payload, "edit")
+    if settings.backend == "demo":
+        return {
+            "target_id": target["id"],
+            "target_name": target["name"],
+            "fragment_path": f"/etc/systemd/system/{target['name']}",
+            "editable": True,
+            "content": "[Unit]\nDescription=Demo unit\n\n[Service]\nExecStart=/usr/bin/true\n",
+            "error": None,
+        }
+    return local_backend.systemd_unit_file(target)
+
+
+@app.post("/v1/systemd/unit-file/save")
+def save_systemd_unit_file(payload: UnitFileSaveRequest) -> dict[str, Any]:
+    target = _require_request_target("systemd", payload, "edit")
+    if settings.backend == "demo":
+        return {"ok": True, "message": f"demo saved {target['name']}", "changed": False}
+    return local_backend.save_systemd_unit_file(target, payload.content)
 
 
 @app.post("/v1/{target_type}/actions/{action_name}")
