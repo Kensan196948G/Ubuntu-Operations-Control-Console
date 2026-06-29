@@ -38,19 +38,44 @@ class AgentClient:
         data = await self._post_or_demo(f"/v1/{target_type}/list", payload, {"items": fallback})
         return data.get("items", data if isinstance(data, list) else fallback)
 
+    async def systemd_catalog(self, targets: list[Target]) -> dict[str, Any]:
+        fallback = demo_systemd_catalog(targets)
+        payload = {"targets": [asdict(target) for target in targets]}
+        return await self._post_or_demo("/v1/systemd/catalog", payload, fallback)
+
     async def get_target(self, target_type: str, target: Target) -> dict[str, Any]:
         fallback = demo_target(target_type, target)
-        return await self._post_or_demo(f"/v1/{target_type}/status", {"target_id": target.id}, fallback)
+        return await self._post_or_demo(f"/v1/{target_type}/status", {"target_id": target.id, "target": asdict(target)}, fallback)
 
     async def logs(self, target_type: str, target: Target, lines: int) -> dict[str, Any]:
         fallback = {"target_id": target.id, "target_name": target.name, "lines": demo_logs(target_type, target, lines)}
-        return await self._post_or_demo(f"/v1/{target_type}/logs", {"target_id": target.id, "lines": lines}, fallback)
+        return await self._post_or_demo(f"/v1/{target_type}/logs", {"target_id": target.id, "target": asdict(target), "lines": lines}, fallback)
+
+    async def systemd_unit_file(self, target: Target) -> dict[str, Any]:
+        fallback = {
+            "target_id": target.id,
+            "target_name": target.name,
+            "fragment_path": f"/etc/systemd/system/{target.name}",
+            "editable": True,
+            "content": "[Unit]\nDescription=Demo unit\n\n[Service]\nExecStart=/usr/bin/true\n",
+            "error": None,
+        }
+        return await self._post_or_demo("/v1/systemd/unit-file", {"target_id": target.id, "target": asdict(target)}, fallback)
+
+    async def save_systemd_unit_file(self, target: Target, content: str) -> dict[str, Any]:
+        fallback = {"ok": True, "message": f"demo saved {target.name}", "changed": False}
+        return await self._post_or_demo(
+            "/v1/systemd/unit-file/save",
+            {"target_id": target.id, "target": asdict(target), "content": content},
+            fallback,
+            allow_demo_actions=True,
+        )
 
     async def action(self, target_type: str, target: Target, action: str) -> dict[str, Any]:
         fallback = {"ok": True, "message": f"demo {action} accepted", "changed": False}
         return await self._post_or_demo(
             f"/v1/{target_type}/actions/{action}",
-            {"target_id": target.id},
+            {"target_id": target.id, "target": asdict(target)},
             fallback,
             allow_demo_actions=True,
         )
@@ -106,6 +131,29 @@ def demo_target_list(target_type: str, targets: list[Target]) -> list[dict[str, 
     return [demo_target(target_type, target) for target in targets]
 
 
+def demo_systemd_catalog(targets: list[Target]) -> dict[str, Any]:
+    allowed = [demo_target("systemd", target) | {"allowed": True, "control_category": "allowed"} for target in targets]
+    extra = [
+        {
+            "id": "cron.service",
+            "name": "cron.service",
+            "display_name": "cron.service",
+            "description": "Demo unit",
+            "status": "active",
+            "load_state": "loaded",
+            "active_state": "active",
+            "sub_state": "running",
+            "allowed": True,
+            "control_category": "allowed",
+            "editable": True,
+            "fragment_path": "/etc/systemd/system/cron.service",
+            "actions": ["start", "stop", "restart", "delete"],
+        }
+    ]
+    all_units = [*allowed, *extra]
+    return {"all_units": all_units, "allowed_units": all_units, "prohibited_units": []}
+
+
 def demo_target(target_type: str, target: Target) -> dict[str, Any]:
     base = {
         "id": target.id,
@@ -115,7 +163,15 @@ def demo_target(target_type: str, target: Target) -> dict[str, Any]:
         "actions": list(target.actions),
     }
     if target_type == "systemd":
-        return base | {"active_state": "active", "sub_state": "running", "status": "active", "last_changed": None}
+        return base | {
+            "active_state": "active",
+            "sub_state": "running",
+            "status": "active",
+            "last_changed": None,
+            "editable": True,
+            "fragment_path": f"/etc/systemd/system/{target.name}",
+            "actions": ["start", "stop", "restart", "delete"],
+        }
     if target_type == "docker":
         return base | {"image": "demo:latest", "state": "running", "status": "Up 1 hour", "uptime": "1 hour", "ports": []}
     return base | {"path": target.path, "compose_file": target.compose_file, "services": 1, "running": 1, "stopped": 0}

@@ -1,5 +1,5 @@
 export type TargetType = "systemd" | "docker" | "compose";
-export type ActionName = "start" | "stop" | "restart";
+export type ActionName = "start" | "stop" | "restart" | "delete";
 
 export type ApiHealth = {
   online: boolean;
@@ -52,8 +52,29 @@ export type SystemdUnit = {
   status: string;
   activeState: string;
   subState: string;
+  loadState?: string;
   lastChanged?: string;
+  fragmentPath?: string;
+  unitFileState?: string;
+  editable?: boolean;
+  allowed?: boolean;
+  controlCategory?: "allowed" | "prohibited";
   actions?: ActionName[];
+};
+
+export type SystemdUnitFile = {
+  targetId: string;
+  targetName: string;
+  fragmentPath?: string;
+  editable: boolean;
+  content: string;
+  error?: string;
+};
+
+export type SystemdCatalog = {
+  allUnits: SystemdUnit[];
+  allowedUnits: SystemdUnit[];
+  prohibitedUnits: SystemdUnit[];
 };
 
 export type DockerContainer = {

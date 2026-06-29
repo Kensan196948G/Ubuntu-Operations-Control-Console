@@ -20,6 +20,7 @@ import type {
   DockerContainer,
   LogPayload,
   OperationRecord,
+  SystemdUnitFile,
   SystemdUnit,
   TargetType
 } from "@/lib/types";
@@ -55,7 +56,7 @@ async function request<T>(path: string, fallback: T, init?: RequestInit): Promis
     return {
       data: fallback,
       fromFallback: true,
-      error: error instanceof Error ? error.message : "Failed to reach API"
+      error: error instanceof Error ? error.message : "API に接続できません"
     };
   }
 }
@@ -81,60 +82,74 @@ function numberFrom(value: unknown, fallback = 0) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function actionsFrom(value: unknown, fallback: ActionName[] = ["start", "stop", "restart"]) {
+function objectFrom(value: unknown) {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function actionsFrom(value: unknown, fallback: ActionName[] = []) {
   if (!Array.isArray(value)) return fallback;
   return value.filter((action): action is ActionName =>
-    action === "start" || action === "stop" || action === "restart"
+    action === "start" || action === "stop" || action === "restart" || action === "delete"
   );
 }
 
 function normalizeDashboard(raw: unknown): DashboardData {
   if (!raw || typeof raw !== "object") return mockDashboard;
   const data = raw as Record<string, unknown>;
-  const host = (data.host && typeof data.host === "object" ? data.host : {}) as Record<string, unknown>;
+  const host = objectFrom(data.host);
+  const uptime = objectFrom(host.uptime ?? data.uptime);
   const docker = (data.docker_summary ?? data.dockerSummary ?? {}) as Record<string, unknown>;
   const systemd = (data.systemd_summary ?? data.systemdSummary ?? {}) as Record<string, unknown>;
   const cpu = (data.cpu && typeof data.cpu === "object" ? data.cpu : { value: data.cpu }) as Record<string, unknown>;
   const memory = (data.memory && typeof data.memory === "object" ? data.memory : { value: data.memory }) as Record<string, unknown>;
   const disk = (data.disk && typeof data.disk === "object" ? data.disk : { value: data.disk }) as Record<string, unknown>;
+  const cpuValue = metricValue(cpu);
+  const memoryValue = metricValue(memory);
+  const diskValue = metricValue(disk);
+  const dockerRunning = numberFrom(docker.running);
+  const dockerStopped = numberFrom(docker.stopped ?? docker.exited);
+  const dockerFailed = numberFrom(docker.failed ?? docker.unhealthy);
+  const systemdRunning = numberFrom(systemd.running ?? systemd.active);
+  const systemdStopped = numberFrom(systemd.stopped ?? systemd.inactive);
+  const systemdFailed = numberFrom(systemd.failed);
 
   return {
     host: {
-      hostname: textFrom(host.hostname ?? host.name ?? data.hostname, "unknown-host"),
+      hostname: textFrom(host.hostname ?? host.name ?? data.hostname, "不明なホスト"),
       os: textFrom(host.os ?? host.os_info ?? data.os, undefined),
-      uptime: textFrom(host.uptime ?? data.uptime, undefined),
-      agentOnline: Boolean(host.agent_online ?? host.agentOnline ?? data.agent_online ?? true)
+      uptime: dashboardUptime(host.uptime ?? data.uptime, uptime),
+      agentOnline: host.agent_online === false || host.agentOnline === false || data.agent_online === false ? false : true
     },
     updatedAt: textFrom(data.updated_at ?? data.updatedAt, new Date().toISOString()),
     cpu: {
-      label: "CPU Usage",
-      value: numberFrom(cpu.usage ?? cpu.percent ?? cpu.value, 0),
-      state: metricState(numberFrom(cpu.usage ?? cpu.percent ?? cpu.value, 0)),
+      label: "CPU 使用率",
+      value: cpuValue,
+      state: metricState(cpuValue),
       helper: textFrom(cpu.helper ?? cpu.load_average, undefined)
     },
     memory: {
-      label: "Memory Usage",
-      value: numberFrom(memory.usage ?? memory.percent ?? memory.value, 0),
-      state: metricState(numberFrom(memory.usage ?? memory.percent ?? memory.value, 0)),
-      helper: textFrom(memory.helper ?? memory.used, undefined)
+      label: "メモリ使用率",
+      value: memoryValue,
+      state: metricState(memoryValue),
+      helper: metricHelper(memory, "MiB")
     },
     disk: {
-      label: "Disk Usage",
-      value: numberFrom(disk.usage ?? disk.percent ?? disk.value, 0),
-      state: metricState(numberFrom(disk.usage ?? disk.percent ?? disk.value, 0)),
-      helper: textFrom(disk.helper ?? disk.mount, undefined)
+      label: "ディスク使用率",
+      value: diskValue,
+      state: metricState(diskValue),
+      helper: metricHelper(disk, "GiB")
     },
     dockerSummary: {
-      running: numberFrom(docker.running),
-      stopped: numberFrom(docker.stopped ?? docker.exited),
-      failed: numberFrom(docker.failed ?? docker.unhealthy),
-      total: numberFrom(docker.total)
+      running: dockerRunning,
+      stopped: dockerStopped,
+      failed: dockerFailed,
+      total: numberFrom(docker.total, dockerRunning + dockerStopped + dockerFailed)
     },
     systemdSummary: {
-      running: numberFrom(systemd.running ?? systemd.active),
-      stopped: numberFrom(systemd.stopped ?? systemd.inactive),
-      failed: numberFrom(systemd.failed),
-      total: numberFrom(systemd.total)
+      running: systemdRunning,
+      stopped: systemdStopped,
+      failed: systemdFailed,
+      total: numberFrom(systemd.total, systemdRunning + systemdStopped + systemdFailed)
     },
     recentOperations: normalizeOperations(data.recent_operations ?? data.recentOperations ?? []),
     alerts: listFrom<Record<string, unknown>>(data.alerts, ["alerts"]).map((alert, index) => ({
@@ -143,6 +158,31 @@ function normalizeDashboard(raw: unknown): DashboardData {
       message: textFrom(alert.message ?? alert.detail)
     }))
   };
+}
+
+function metricValue(metric: Record<string, unknown>) {
+  return numberFrom(metric.usage_percent ?? metric.usage ?? metric.percent ?? metric.value, 0);
+}
+
+function metricHelper(metric: Record<string, unknown>, unit: "MiB" | "GiB") {
+  if (metric.helper) return textFrom(metric.helper, undefined);
+  const used = metric.used ?? metric.used_mb ?? metric.used_gb;
+  const total = metric.total ?? metric.total_mb ?? metric.total_gb;
+  if (used !== undefined && total !== undefined) return `${used} ${unit} / ${total} ${unit}`;
+  return textFrom(used, undefined);
+}
+
+function dashboardUptime(raw: unknown, uptime: Record<string, unknown>) {
+  if (typeof raw === "string" && raw) return raw;
+  if (uptime.label) return textFrom(uptime.label, undefined);
+  const seconds = numberFrom(uptime.seconds, Number.NaN);
+  if (!Number.isFinite(seconds)) return undefined;
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}日 ${hours}時間`;
+  if (hours > 0) return `${hours}時間 ${minutes}分`;
+  return `${minutes}分`;
 }
 
 function metricState(value: number): "normal" | "warning" | "critical" {
@@ -160,9 +200,37 @@ function normalizeSystemd(payload: unknown): SystemdUnit[] {
     status: textFrom(unit.status ?? unit.active_state ?? unit.activeState, "unknown"),
     activeState: textFrom(unit.active_state ?? unit.activeState, "unknown"),
     subState: textFrom(unit.sub_state ?? unit.subState, "unknown"),
+    loadState: textFrom(unit.load_state ?? unit.loadState, undefined),
     lastChanged: textFrom(unit.last_changed ?? unit.lastChanged, undefined),
+    fragmentPath: textFrom(unit.fragment_path ?? unit.fragmentPath, undefined),
+    unitFileState: textFrom(unit.unit_file_state ?? unit.unitFileState, undefined),
+    editable: Boolean(unit.editable ?? false),
+    allowed: Boolean(unit.allowed ?? unit.control_allowed ?? unit.controlAllowed ?? false),
+    controlCategory: unit.allowed || unit.control_allowed || unit.controlAllowed ? "allowed" : "prohibited",
     actions: actionsFrom(unit.actions)
   }));
+}
+
+function normalizeSystemdUnitFile(payload: unknown, fallbackId: string): SystemdUnitFile {
+  const data = objectFrom(payload);
+  return {
+    targetId: textFrom(data.target_id ?? data.targetId, fallbackId),
+    targetName: textFrom(data.target_name ?? data.targetName, fallbackId),
+    fragmentPath: textFrom(data.fragment_path ?? data.fragmentPath, undefined),
+    editable: Boolean(data.editable),
+    content: textFrom(data.content, ""),
+    error: textFrom(data.error, undefined)
+  };
+}
+
+function normalizeSystemdCatalog(payload: unknown) {
+  const data = objectFrom(payload);
+  const allUnits = normalizeSystemd(data.all_units ?? data.allUnits ?? data.items ?? []);
+  const allowedUnits = normalizeSystemd(data.allowed_units ?? data.allowedUnits ?? allUnits.filter((unit) => unit.allowed));
+  const prohibitedUnits = normalizeSystemd(
+    data.prohibited_units ?? data.prohibitedUnits ?? allUnits.filter((unit) => !unit.allowed)
+  );
+  return { allUnits, allowedUnits, prohibitedUnits };
 }
 
 function normalizeDocker(payload: unknown): DockerContainer[] {
@@ -251,6 +319,34 @@ export async function getDashboard() {
 export async function getSystemdUnits() {
   const result = await request<unknown>("/systemd/units", mockSystemdUnits);
   return { ...result, data: normalizeSystemd(result.data) };
+}
+
+export async function getSystemdCatalog() {
+  const result = await request<unknown>("/systemd/catalog", {
+    all_units: mockSystemdUnits.map((unit) => ({ ...unit, allowed: true })),
+    allowed_units: mockSystemdUnits.map((unit) => ({ ...unit, allowed: true })),
+    prohibited_units: []
+  });
+  return { ...result, data: normalizeSystemdCatalog(result.data) };
+}
+
+export async function getSystemdUnitFile(id: string) {
+  const result = await request<unknown>(`/systemd/units/${encodeURIComponent(id)}/file`, {
+    target_id: id,
+    target_name: id,
+    fragment_path: `/etc/systemd/system/${id}`,
+    editable: true,
+    content: "[Unit]\nDescription=Demo unit\n\n[Service]\nExecStart=/usr/bin/true\n",
+    error: undefined
+  });
+  return { ...result, data: normalizeSystemdUnitFile(result.data, id) };
+}
+
+export async function saveSystemdUnitFile(id: string, content: string) {
+  return request<unknown>(`/systemd/units/${encodeURIComponent(id)}/file`, { ok: true }, {
+    method: "POST",
+    body: JSON.stringify({ content })
+  });
 }
 
 export async function getDockerContainers() {
